@@ -199,11 +199,42 @@ const B=[
 ["Miljö","Som säker förare: hur påverkar lågt däcktryck normalt energiförbrukningen?",["Den kan öka","Den blir alltid noll","Den minskar alltid kraftigt","Den påverkas bara i mörker"],0,"Lågt däcktryck ökar normalt rullmotståndet."],
 ["Miljö","Som säker förare: vilken åtgärd minskar normalt luftmotståndet?",["Ta bort oanvänd takbox","Öka bilens höjd","Öppna alla fönster i hög fart","Lasta på taket"],0,"Taklast och takbox kan öka luftmotståndet."],
 ["Miljö","Som säker förare: varför är framförhållning miljömässigt bra?",["Du kan undvika onödiga inbromsningar och accelerationer","Du behöver alltid köra fortare","Motorn blir större","Däcken blir automatiskt nya"],0,"Jämn körning använder normalt mindre energi."],
-["Miljö","Som säker förare: vad är en fördel med att samordna resor när det är möjligt?",["Färre fordonskilometer kan behövas","Bromssträckan blir noll","Hastighetsregler upphör","Bilen får bättre däck"],0,"Färre resor kan minska energianvändning och utsläpp."]\n];\nlet mode="train",Q=[],cur,r=0,w=0,total=0,answers=0,tick=null,sec=3000;
-const $=x=>document.getElementById(x),mix=a=>a.sort(()=>Math.random()-.5);
-train.onclick=()=>{mode="train";train.classList.add("on");exam.classList.remove("on")};exam.onclick=()=>{mode="exam";exam.classList.add("on");train.classList.remove("on")};
-start.addEventListener("click",()=>{home.classList.add("hidden");quiz.classList.remove("hidden");r=w=answers=0;if(mode==="train"){Q=mix([...Array(B.length).keys()]);total=B.length}else{Q=[];while(Q.length<70)Q.push(...mix([...Array(B.length).keys()]));Q=Q.slice(0,70);total=70;sec=3000;timer.textContent="50:00";tick=setInterval(()=>{sec--;timer.textContent=Math.floor(sec/60)+":"+String(sec%60).padStart(2,"0");if(sec<=0)finish()},1000)};nextQ()};
-function nextQ(){if(!Q.length)return finish();let i=Q.shift(),base=B[i],pairs=base[2].map((t,j)=>({t,ok:j===base[3]}));mix(pairs);let x=[base[0],base[1],pairs.map(p=>p.t),pairs.findIndex(p=>p.ok),base[4]];cur={i,x};cat.textContent=x[0];q.textContent=x[1];answersEl=$("answers");answersEl.innerHTML="";fb.classList.add("hidden");next.classList.add("hidden");count.textContent=mode==="exam"?"Fråga "+(answers+1)+"/70":r+"/"+total+" klara";bar.style.width=(mode==="exam"?answers/70:r/total)*100+"%";left.textContent=Q.length+1;x[2].forEach((t,j)=>{let b=document.createElement("button");b.className="ans";b.textContent=t;b.onclick=()=>pick(j,b);answersEl.appendChild(b)})}
-function pick(j,b){let x=cur.x,ok=j===x[3];[...$("answers").children].forEach(z=>z.disabled=true);answers++;if(ok){r++;b.classList.add("good")}else{w++;b.classList.add("bad");$("answers").children[x[3]].classList.add("good");if(mode==="train")Q.splice(Math.min(Q.length,5+Math.floor(Math.random()*8)),0,cur.i)};$("r").textContent=r;$("w").textContent=w;$("left").textContent=Q.length;if(mode==="exam"){nextQ();return}fb.textContent=(ok?"Rätt. ":"Fel. Frågan kommer tillbaka. ")+x[4];fb.classList.remove("hidden");next.classList.remove("hidden");next.onclick=nextQ}
-function finish(){if(tick)clearInterval(tick);quiz.classList.add("hidden");done.classList.remove("hidden");result.textContent=mode==="exam"?r+" rätt av 70 träningsfrågor.":("Alla "+total+" frågor besvarade rätt. Du hade "+w+" felsvar under passet.");localStorage.setItem("lastScore",JSON.stringify({r,w,date:Date.now()}))}
+["Miljö","Som säker förare: vad är en fördel med att samordna resor när det är möjligt?",["Färre fordonskilometer kan behövas","Bromssträckan blir noll","Hastighetsregler upphör","Bilen får bättre däck"],0,"Färre resor kan minska energianvändning och utsläpp."]
+];
+let mode="train", queue=[], current=null, correct=0, wrong=0, answered=0, total=0, timerId=null, seconds=3000;
+const byId=id=>document.getElementById(id);
+const el={home:byId("home"),quiz:byId("quiz"),done:byId("done"),train:byId("train"),exam:byId("exam"),start:byId("start"),cat:byId("cat"),count:byId("count"),timer:byId("timer"),bar:byId("bar"),r:byId("r"),w:byId("w"),left:byId("left"),q:byId("q"),answers:byId("answers"),fb:byId("fb"),next:byId("next"),result:byId("result")};
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+el.train.addEventListener("click",function(){mode="train";el.train.classList.add("on");el.exam.classList.remove("on")});
+el.exam.addEventListener("click",function(){mode="exam";el.exam.classList.add("on");el.train.classList.remove("on")});
+el.start.addEventListener("click",startSession);
+el.next.addEventListener("click",showQuestion);
+function startSession(){
+ correct=0;wrong=0;answered=0;el.r.textContent="0";el.w.textContent="0";el.home.classList.add("hidden");el.done.classList.add("hidden");el.quiz.classList.remove("hidden");
+ if(mode==="train"){queue=shuffle(Array.from({length:B.length},(_,i)=>i));total=B.length;el.timer.textContent=""}
+ else{queue=shuffle(Array.from({length:B.length},(_,i)=>i)).slice(0,70);total=70;seconds=3000;el.timer.textContent="50:00";timerId=setInterval(function(){seconds--;el.timer.textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");if(seconds<=0)finish()},1000)}
+ showQuestion();
+}
+function showQuestion(){
+ if(queue.length===0){finish();return}
+ const index=queue.shift(),base=B[index];
+ const opts=shuffle(base[2].map((text,i)=>({text:text,correct:i===base[3]})));
+ current={index:index,category:base[0],question:base[1],options:opts,explanation:base[4]};
+ el.cat.textContent=current.category;el.q.textContent=current.question;el.answers.innerHTML="";el.fb.classList.add("hidden");el.next.classList.add("hidden");
+ el.count.textContent=mode==="exam"?"Fråga "+(answered+1)+"/70":correct+"/"+total+" klara";
+ el.bar.style.width=((mode==="exam"?answered/70:correct/total)*100)+"%";el.left.textContent=String(queue.length+1);
+ opts.forEach(function(opt,i){const b=document.createElement("button");b.type="button";b.className="ans";b.textContent=opt.text;b.addEventListener("click",function(){choose(i,b)});el.answers.appendChild(b)});
+}
+function choose(i,button){
+ const ok=current.options[i].correct;Array.from(el.answers.children).forEach(b=>b.disabled=true);answered++;
+ if(ok){correct++;button.classList.add("good")}else{wrong++;button.classList.add("bad");Array.from(el.answers.children).forEach((b,j)=>{if(current.options[j].correct)b.classList.add("good")});if(mode==="train"){const at=Math.min(queue.length,5+Math.floor(Math.random()*8));queue.splice(at,0,current.index)}}
+ el.r.textContent=String(correct);el.w.textContent=String(wrong);el.left.textContent=String(queue.length);
+ if(mode==="exam"){showQuestion();return}
+ el.fb.textContent=(ok?"Rätt. ":"Fel. Frågan kommer tillbaka. ")+current.explanation;el.fb.classList.remove("hidden");el.next.classList.remove("hidden");
+}
+function finish(){
+ if(timerId){clearInterval(timerId);timerId=null}el.quiz.classList.add("hidden");el.done.classList.remove("hidden");
+ el.result.textContent=mode==="exam"?correct+" rätt av 70 träningsfrågor.":"Alla "+total+" frågor besvarade rätt. Du hade "+wrong+" felsvar under passet.";
+ try{localStorage.setItem("lastScore",JSON.stringify({r:correct,w:wrong,date:Date.now()}))}catch(e){}
+}
 </script></body></html>
